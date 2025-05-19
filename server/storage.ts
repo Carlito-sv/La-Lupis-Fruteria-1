@@ -158,13 +158,34 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getLowStockProducts(): Promise<any[]> {
-    return db.execute(sql`
-      SELECT p.id, p.name, p.category, p.min_stock, i.quantity, p.unit, i.expiry_date
-      FROM ${products} p
-      JOIN ${inventory} i ON p.id = i.product_id
-      WHERE i.quantity <= p.min_stock
-      ORDER BY (i.quantity / p.min_stock) ASC
-    `);
+    try {
+      // Primero verificamos si hay productos en inventario
+      const allInventory = await db.select().from(inventory);
+      if (!allInventory || allInventory.length === 0) {
+        console.log("No inventory found, returning empty array");
+        return [];
+      }
+      
+      const result = await db.execute(sql`
+        SELECT p.id, p.name, p.category, p.min_stock, i.quantity, p.unit, i.expiry_date
+        FROM ${products} p
+        JOIN ${inventory} i ON p.id = i.product_id
+        WHERE i.quantity <= p.min_stock
+        ORDER BY (i.quantity / p.min_stock) ASC
+      `);
+      
+      // Asegurarnos de que tenemos un array para devolver
+      if (Array.isArray(result)) {
+        return result;
+      } else if (result && typeof result === 'object' && 'rows' in result) {
+        return result.rows;
+      } else {
+        return [];
+      }
+    } catch (error) {
+      console.error("Error getting low stock products:", error);
+      return [];
+    }
   }
 
   async getNearExpiryProducts(days: number): Promise<any[]> {
@@ -234,16 +255,37 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getRecentSales(limit = 10): Promise<any[]> {
-    return db.execute(sql`
-      SELECT s.id, s.invoice_number, c.name as customer_name, s.sale_date, s.total, s.status,
-             COUNT(si.id) as item_count
-      FROM ${sales} s
-      LEFT JOIN ${customers} c ON s.customer_id = c.id
-      LEFT JOIN ${saleItems} si ON s.id = si.sale_id
-      GROUP BY s.id, c.name
-      ORDER BY s.sale_date DESC
-      LIMIT ${limit}
-    `);
+    try {
+      // Verificar si hay ventas en la base de datos
+      const existingSales = await db.select().from(sales).limit(1);
+      if (!existingSales || existingSales.length === 0) {
+        console.log("No sales found in database, returning empty array");
+        return [];
+      }
+      
+      const result = await db.execute(sql`
+        SELECT s.id, s.invoice_number, c.name as customer_name, s.sale_date, s.total, s.status,
+               COUNT(si.id) as item_count
+        FROM ${sales} s
+        LEFT JOIN ${customers} c ON s.customer_id = c.id
+        LEFT JOIN ${saleItems} si ON s.id = si.sale_id
+        GROUP BY s.id, c.name
+        ORDER BY s.sale_date DESC
+        LIMIT ${limit}
+      `);
+      
+      // Asegurarnos de que tenemos un array para devolver
+      if (Array.isArray(result)) {
+        return result;
+      } else if (result && typeof result === 'object' && 'rows' in result) {
+        return result.rows || [];
+      } else {
+        return [];
+      }
+    } catch (error) {
+      console.error("Error getting recent sales:", error);
+      return [];
+    }
   }
 
   async createSale(saleData: InsertSale, itemsData: InsertSaleItem[]): Promise<{ sale: Sale, items: SaleItem[] }> {
@@ -636,6 +678,7 @@ export class DatabaseStorage implements IStorage {
       
       // Si no hay productos, devolvemos un array vacío
       if (!allProducts || allProducts.length === 0) {
+        console.log("No products found in database, returning empty array");
         return [];
       }
       
@@ -675,6 +718,8 @@ export class DatabaseStorage implements IStorage {
           id: product.id,
           name: product.name,
           image: product.imageUrl || '',
+          total_quantity: 0,
+          total_sales: 0,
           percentage: 0
         }));
       }
