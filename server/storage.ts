@@ -630,26 +630,58 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getTopProducts(limit = 5): Promise<any[]> {
-    // Get top selling products for the last 30 days
-    return db.execute(sql`
-      SELECT 
-        p.id,
-        p.name,
-        p.image_url as image,
-        SUM(si.quantity) as total_quantity,
-        COUNT(DISTINCT s.id) as total_sales,
-        ROUND((COUNT(DISTINCT s.id) * 100.0 / (
-          SELECT COUNT(*) FROM ${sales} 
-          WHERE sale_date >= (CURRENT_DATE - INTERVAL '30 days')
-        )), 0) as percentage
-      FROM ${products} p
-      JOIN ${saleItems} si ON p.id = si.product_id
-      JOIN ${sales} s ON si.sale_id = s.id
-      WHERE s.sale_date >= (CURRENT_DATE - INTERVAL '30 days')
-      GROUP BY p.id, p.name
-      ORDER BY total_quantity DESC
-      LIMIT ${limit}
-    `);
+    try {
+      // Primero verificamos si hay productos en la base de datos
+      const allProducts = await db.select().from(products).limit(limit);
+      
+      // Si no hay productos, devolvemos un array vacío
+      if (!allProducts || allProducts.length === 0) {
+        return [];
+      }
+      
+      // Intentamos obtener los productos más vendidos
+      try {
+        const result = await db.execute(sql`
+          SELECT 
+            p.id,
+            p.name,
+            p.image_url as image,
+            COALESCE(SUM(si.quantity), 0) as total_quantity,
+            COALESCE(COUNT(DISTINCT s.id), 0) as total_sales,
+            COALESCE(ROUND((COUNT(DISTINCT s.id) * 100.0 / NULLIF(
+              (SELECT COUNT(*) FROM ${sales} 
+              WHERE sale_date >= (CURRENT_DATE - INTERVAL '30 days')), 0
+            )), 0), 0) as percentage
+          FROM ${products} p
+          LEFT JOIN ${saleItems} si ON p.id = si.product_id
+          LEFT JOIN ${sales} s ON si.sale_id = s.id AND s.sale_date >= (CURRENT_DATE - INTERVAL '30 days')
+          GROUP BY p.id, p.name
+          ORDER BY total_quantity DESC
+          LIMIT ${limit}
+        `);
+        
+        // Asegurarnos de que tenemos un array para devolver
+        if (Array.isArray(result)) {
+          return result;
+        } else if (result && typeof result === 'object' && 'rows' in result) {
+          return result.rows;
+        } else {
+          return [];
+        }
+      } catch (error) {
+        console.error("Error getting top products:", error);
+        // Si hay un error con la consulta compleja, devolvemos productos básicos
+        return allProducts.map(product => ({
+          id: product.id,
+          name: product.name,
+          image: product.imageUrl || '',
+          percentage: 0
+        }));
+      }
+    } catch (error) {
+      console.error("Error in getTopProducts:", error);
+      return [];
+    }
   }
 }
 
