@@ -1,0 +1,35 @@
+Para mi negocio de abarrotes y frutas y verduras, llamado la Lupis quiero un sistema de control financiero web debe permitir la gestión de ingresos, gastos, inventario, facturación y contabilidad.
+
+Funcionalidades clave de un sistema de control financiero web para un negocio de abarrotes y frutas y verduras: 
+	•	Control de ingresos y gastos: Registrar todas las transacciones, incluyendo ventas, compras, pagos y devoluciones.      
+	•	Gestión de inventario: Llevar un control preciso del stock de productos, incluyendo la entrada y salida de mercadería.      
+	•	Facturación: Generar y gestionar facturas de compra y venta, incluyendo la aplicación de impuestos.      
+	•	Contabilidad: Realizar la contabilidad general del negocio, incluyendo la creación de balances y estados de resultados.      
+	•	Análisis de datos: Obtener información relevante sobre el rendimiento del negocio, como la rentabilidad por producto, los costos operativos y las tendencias de ventas.      
+Beneficios de utilizar un sistema de control financiero web: 
+	•	Ahorro de tiempo: Automatizar procesos y reducir la necesidad de realizar tareas manuales.  
+	•	Mayor precisión: Minimizar errores en la gestión de las finanzas.  
+	•	Mayor control: Obtener una visión clara y detallada de la situación financiera del negocio.  
+	•	Mejor toma de decisiones: Contar con información relevante para tomar decisiones estratégicas.  
+	•	Facilidad de acceso: Acceder a la información financiera desde cualquier lugar con conexión a internet. 
+
+CARACTERÍSTICAS PRINCIPALES DEL SISTEMA ERP TODO EN UNO
+	•	Control de Inventario, gestión automática de entradas y salidas Frutas y Verduras.
+	•	Avisos oportunos de productos perecederos y fecha de caducidad.
+	•	Alertas automáticas de Stock Mínimo y Re-Abastecimiento.
+	•	Sistema Punto de Venta para Frutería (TPV /POS), Soporte múltiples cajas registradoras y Balanza Electrónica.
+	•	Administración de Personal, control de asistencia, pago de nómina.
+	•	Software de Ventas registro en tiempo real de compras, ventas, cuentas por cobrar, cuenta por pagar.
+	•	Facturación Electrónica (opcional) y Facturación Tradicional.
+	•	Selección de diferentes tipos de Pago, crédito, débito, conciliaciones.
+	•	Contabilidad Automática y reportes financieros ( Estado de situación Financiera, Estado de resultado, Estado de flujo de efectivo )
+	•	Administración remota, controle el sistema desde su Table y Teléfono Inteligente Android / iOS. Instalación en la Nube o local.
+	•	Acceso a la Información de su Frutería o cadena de establecimientos las 24 horas del día.
+
+	•	Reducción de Pérdidas: Uno de los principales beneficios radica en la reducción de pérdidas. Al tener un control preciso de tus inventarios y una visión en tiempo real de la frescura de tus productos, puedes minimizar el desperdicio al utilizar primero los productos más antiguos. Esto no solo ahorra recursos, sino que también contribuye a la sostenibilidad.
+	•	Optimización de Inventarios: Nuestra solución permite una gestión más eficiente de los inventarios, lo que significa que puedes mantener los niveles adecuados de productos frescos sin sobrecomprar o quedarte sin stock. Esto se traduce en una utilización más eficaz de tus recursos financieros y físicos.
+	•	Mejora de la Eficiencia Operativa: Al contar con una visión completa y en tiempo real de tu cadena de suministro, puedes tomar decisiones más informadas. Esto conduce a una mayor eficiencia operativa en toda tu empresa. Puedes ajustar tus operaciones según la demanda, prever con precisión los pedidos y coordinar las actividades de manera más eficiente.
+	•	Mejor Servicio al Cliente: Una gestión más precisa de los inventarios y una mayor frescura de los productos permiten ofrecer un servicio más consistente y de mayor calidad a tus clientes. La satisfacción del cliente es esencial en cualquier negocio, y un ERP hortofrutícola contribuye directamente a mejorarla.
+	•	Cumplimiento Normativo y Seguridad Alimentaria: En la industria de frutas y verduras, el cumplimiento de regulaciones y la seguridad alimentaria son críticos.Nuestro software de gestión de inventarios hortofrutícola garantiza la trazabilidad completa, lo que te permite cumplir con las regulaciones y garantizar la seguridad de los productos que llegan a los consumidores.
+En última instancia, un ERP hortofrutícola de Reset Control no solo simplifica la gestión de inventarios, sino que también tiene un impacto positivo en la rentabilidad de tu negocio, la sostenibilidad y la satisfacción de los clientes. La inversión en esta solución no solo se traduce en una gestión de inventarios más eficiente, sino que también fortalece la posición de tu empresa en la industria hortofrutícola.
+
