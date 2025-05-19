@@ -119,12 +119,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getProductsByCategory(category: string): Promise<Product[]> {
-    try {
-      return db.select().from(products).where(eq(products.category, category));
-    } catch (error) {
-      console.error("Error getting products by category:", error);
-      return [];
-    }
+    return db.select().from(products).where(eq(products.category, category));
   }
 
   async createProduct(product: InsertProduct): Promise<Product> {
@@ -194,42 +189,21 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getNearExpiryProducts(days: number): Promise<any[]> {
-    try {
-      // Primero verificamos si hay productos en inventario
-      const allInventory = await db.select().from(inventory).limit(1);
-      if (!allInventory || allInventory.length === 0) {
-        console.log("No inventory found, returning empty array");
-        return [];
-      }
-      
-      const futureDate = new Date();
-      futureDate.setDate(futureDate.getDate() + days);
-      
-      const result = await db.execute(sql`
-        SELECT p.id, p.name, p.category, i.quantity, p.unit, i.expiry_date,
-               (i.expiry_date - CURRENT_DATE) as days_until_expiry
-        FROM ${products} p
-        JOIN ${inventory} i ON p.id = i.product_id
-        WHERE p.is_perishable = true
-          AND i.expiry_date IS NOT NULL
-          AND i.expiry_date <= ${futureDate.toISOString()}
-          AND i.expiry_date >= CURRENT_DATE
-          AND i.quantity > 0
-        ORDER BY i.expiry_date ASC
-      `);
-      
-      // Asegurarnos de que tenemos un array para devolver
-      if (Array.isArray(result)) {
-        return result;
-      } else if (result && typeof result === 'object' && 'rows' in result) {
-        return result.rows || [];
-      } else {
-        return [];
-      }
-    } catch (error) {
-      console.error("Error getting near expiry products:", error);
-      return [];
-    }
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + days);
+    
+    return db.execute(sql`
+      SELECT p.id, p.name, p.category, i.quantity, p.unit, i.expiry_date,
+             (i.expiry_date - CURRENT_DATE) as days_until_expiry
+      FROM ${products} p
+      JOIN ${inventory} i ON p.id = i.product_id
+      WHERE p.is_perishable = true
+        AND i.expiry_date IS NOT NULL
+        AND i.expiry_date <= ${futureDate.toISOString()}
+        AND i.expiry_date >= CURRENT_DATE
+        AND i.quantity > 0
+      ORDER BY i.expiry_date ASC
+    `);
   }
 
   async updateInventoryQuantity(productId: number, quantity: number): Promise<Inventory | undefined> {
@@ -238,7 +212,7 @@ export class DatabaseStorage implements IStorage {
       .from(inventory)
       .where(eq(inventory.productId, productId))
       .orderBy(desc(inventory.expiryDate));
-    
+
     if (existingInventory) {
       const [updatedInventory] = await db
         .update(inventory)
@@ -334,8 +308,9 @@ export class DatabaseStorage implements IStorage {
         .values(saleItemsWithSaleId)
         .returning();
       
-      // Update inventory quantities
-      for (const item of saleItemsWithSaleId) {
+      // Update inventory for each item
+      for (const item of itemsData) {
+        // Get the product's inventory
         const [inventoryItem] = await tx
           .select()
           .from(inventory)
@@ -343,6 +318,7 @@ export class DatabaseStorage implements IStorage {
           .orderBy(desc(inventory.expiryDate));
         
         if (inventoryItem) {
+          // Update inventory quantity
           await tx
             .update(inventory)
             .set({ 
@@ -366,11 +342,11 @@ export class DatabaseStorage implements IStorage {
     }
     
     if (startDate) {
-      query = query.where(startDate ? sql`date >= ${startDate.toISOString()}` : sql`true`);
+      query = query.where(gte(transactions.date, startDate));
     }
     
     if (endDate) {
-      query = query.where(endDate ? sql`date < ${endDate.toISOString()}` : sql`true`);
+      query = query.where(lte(transactions.date, endDate));
     }
     
     return query.orderBy(desc(transactions.date));
@@ -379,65 +355,92 @@ export class DatabaseStorage implements IStorage {
   async createTransaction(transaction: InsertTransaction): Promise<Transaction> {
     const [newTransaction] = await db
       .insert(transactions)
-      .values({
-        ...transaction,
-        date: new Date()
-      })
+      .values(transaction)
       .returning();
     return newTransaction;
   }
 
   async getFinancialSummary(startDate: Date, endDate: Date): Promise<any> {
-    const incomeResult = await db.execute(sql`
+    const [income] = await db.execute(sql`
       SELECT COALESCE(SUM(amount), 0) as total
       FROM ${transactions}
       WHERE type = 'income'
-        AND date >= ${startDate.toISOString()}
-        AND date < ${endDate.toISOString()}
+      AND date BETWEEN ${startDate.toISOString()} AND ${endDate.toISOString()}
     `);
     
-    const expenseResult = await db.execute(sql`
+    const [expenses] = await db.execute(sql`
       SELECT COALESCE(SUM(amount), 0) as total
       FROM ${transactions}
       WHERE type = 'expense'
-        AND date >= ${startDate.toISOString()}
-        AND date < ${endDate.toISOString()}
+      AND date BETWEEN ${startDate.toISOString()} AND ${endDate.toISOString()}
     `);
     
-    // Get income by categories
-    const incomeByCategory = await db.execute(sql`
-      SELECT category, COALESCE(SUM(amount), 0) as total
-      FROM ${transactions}
-      WHERE type = 'income'
-        AND date >= ${startDate.toISOString()}
-        AND date < ${endDate.toISOString()}
-      GROUP BY category
-      ORDER BY total DESC
-    `);
-    
-    // Get expenses by categories
-    const expensesByCategory = await db.execute(sql`
-      SELECT category, COALESCE(SUM(amount), 0) as total
+    const expensesBreakdown = await db.execute(sql`
+      SELECT category, COALESCE(SUM(amount), 0) as value
       FROM ${transactions}
       WHERE type = 'expense'
-        AND date >= ${startDate.toISOString()}
-        AND date < ${endDate.toISOString()}
+      AND date BETWEEN ${startDate.toISOString()} AND ${endDate.toISOString()}
       GROUP BY category
-      ORDER BY total DESC
     `);
     
-    const incomeTotal = (Array.isArray(incomeResult) && incomeResult.length > 0) ? 
-      parseFloat(incomeResult[0].total) : 0;
+    const incomeByDay = await db.execute(sql`
+      SELECT to_char(date, 'Dy') as name, COALESCE(SUM(amount), 0) as income
+      FROM ${transactions}
+      WHERE type = 'income'
+      AND date BETWEEN ${startDate.toISOString()} AND ${endDate.toISOString()}
+      GROUP BY to_char(date, 'Dy'), to_char(date, 'ID')
+      ORDER BY to_char(date, 'ID')
+    `);
     
-    const expenseTotal = (Array.isArray(expenseResult) && expenseResult.length > 0) ? 
-      parseFloat(expenseResult[0].total) : 0;
+    // Calculate previous period for comparison
+    const daysDiff = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    const prevStartDate = new Date(startDate);
+    prevStartDate.setDate(prevStartDate.getDate() - daysDiff - 1);
+    const prevEndDate = new Date(startDate);
+    prevEndDate.setDate(prevEndDate.getDate() - 1);
+    
+    const [prevIncome] = await db.execute(sql`
+      SELECT COALESCE(SUM(amount), 0) as total
+      FROM ${transactions}
+      WHERE type = 'income'
+      AND date BETWEEN ${prevStartDate.toISOString()} AND ${prevEndDate.toISOString()}
+    `);
+    
+    const [prevExpenses] = await db.execute(sql`
+      SELECT COALESCE(SUM(amount), 0) as total
+      FROM ${transactions}
+      WHERE type = 'expense'
+      AND date BETWEEN ${prevStartDate.toISOString()} AND ${prevEndDate.toISOString()}
+    `);
+    
+    const incomeTotal = parseFloat(income.total) || 0;
+    const expensesTotal = parseFloat(expenses.total) || 0;
+    const prevIncomeTotal = parseFloat(prevIncome.total) || 0;
+    const prevExpensesTotal = parseFloat(prevExpenses.total) || 0;
+    
+    const incomeChange = prevIncomeTotal > 0 
+      ? Math.round(((incomeTotal - prevIncomeTotal) / prevIncomeTotal) * 100) 
+      : 0;
+      
+    const expensesChange = prevExpensesTotal > 0 
+      ? Math.round(((expensesTotal - prevExpensesTotal) / prevExpensesTotal) * 100) 
+      : 0;
+      
+    const netProfit = incomeTotal - expensesTotal;
+    const prevNetProfit = prevIncomeTotal - prevExpensesTotal;
+    const netProfitChange = prevNetProfit !== 0 
+      ? Math.round(((netProfit - prevNetProfit) / Math.abs(prevNetProfit)) * 100) 
+      : 0;
     
     return {
-      income: incomeTotal,
-      expenses: expenseTotal,
-      profit: incomeTotal - expenseTotal,
-      incomeByCategory: Array.isArray(incomeByCategory) ? incomeByCategory : [],
-      expensesByCategory: Array.isArray(expensesByCategory) ? expensesByCategory : []
+      income: incomeTotal.toFixed(2),
+      expenses: expensesTotal.toFixed(2),
+      netProfit: netProfit.toFixed(2),
+      incomeChange: `${incomeChange}%`,
+      expensesChange: `${expensesChange}%`,
+      netProfitChange: `${netProfitChange}%`,
+      expensesBreakdown,
+      incomeByDay
     };
   }
 
@@ -468,18 +471,22 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAttendanceRecords(date?: string): Promise<any[]> {
-    let query = db
-      .select({
-        a: attendance,
-        employeeName: employees.name
-      })
-      .from(attendance)
-      .leftJoin(employees, eq(attendance.employeeId, employees.id));
+    let query = db.select({
+      id: attendance.id,
+      employeeId: attendance.employeeId,
+      employeeName: employees.name,
+      date: attendance.date,
+      checkIn: attendance.checkIn,
+      checkOut: attendance.checkOut,
+      hoursWorked: attendance.hoursWorked,
+      status: attendance.status,
+      notes: attendance.notes
+    })
+    .from(attendance)
+    .innerJoin(employees, eq(attendance.employeeId, employees.id));
     
     if (date) {
-      query = query.where(
-        sql`${attendance.date}::date = ${date}::date`
-      );
+      query = query.where(eq(attendance.date, date));
     }
     
     return query.orderBy(desc(attendance.date));
@@ -515,8 +522,8 @@ export class DatabaseStorage implements IStorage {
 
   async getAllSettings(): Promise<Record<string, string>> {
     const allSettings = await db.select().from(settings);
-    return allSettings.reduce((acc, setting) => {
-      acc[setting.key] = setting.value;
+    return allSettings.reduce((acc, { key, value }) => {
+      acc[key] = value;
       return acc;
     }, {} as Record<string, string>);
   }
@@ -736,6 +743,148 @@ export class DatabaseStorage implements IStorage {
       }
     } catch (error) {
       console.error("Error in getTopProducts:", error);
+      return [];
+    }
+  }
+      WHERE date >= ${yesterday.toISOString()} AND date < ${today.toISOString()}
+    `);
+    
+    // Calculate percentages
+    const todaySalesValue = parseFloat(todaySales.total) || 0;
+    const yesterdaySalesValue = parseFloat(yesterdaySales.total) || 0;
+    const salesChange = yesterdaySalesValue > 0 
+      ? Math.round(((todaySalesValue - yesterdaySalesValue) / yesterdaySalesValue) * 100) 
+      : 0;
+    
+    const todayCustomersValue = parseInt(todayCustomers.count) || 0;
+    const yesterdayCustomersValue = parseInt(yesterdayCustomers.count) || 0;
+    const customersChange = yesterdayCustomersValue > 0 
+      ? Math.round(((todayCustomersValue - yesterdayCustomersValue) / yesterdayCustomersValue) * 100) 
+      : 0;
+    
+    const todayProfitValue = parseFloat(todayProfit.profit) || 0;
+    const yesterdayProfitValue = parseFloat(yesterdayProfit.profit) || 0;
+    const profitChange = yesterdayProfitValue !== 0 
+      ? Math.round(((todayProfitValue - yesterdayProfitValue) / Math.abs(yesterdayProfitValue)) * 100) 
+      : 0;
+    
+    return {
+      dailySales: {
+        value: `$${todaySalesValue.toFixed(2)}`,
+        change: `${salesChange}%`,
+        direction: salesChange > 0 ? "up" : salesChange < 0 ? "down" : "neutral"
+      },
+      dailyCustomers: {
+        value: `${todayCustomersValue}`,
+        change: `${customersChange}%`,
+        direction: customersChange > 0 ? "up" : customersChange < 0 ? "down" : "neutral"
+      },
+      inventoryAlerts: {
+        value: `${inventoryAlerts.count}`,
+        change: `${newAlerts.count} nuevas`,
+        direction: parseInt(newAlerts.count) > 0 ? "up" : "neutral"
+      },
+      netProfit: {
+        value: `$${todayProfitValue.toFixed(2)}`,
+        change: `${profitChange}%`,
+        direction: profitChange > 0 ? "up" : profitChange < 0 ? "down" : "neutral"
+      }
+    };
+  }
+
+  async getTopProducts(limit = 5): Promise<any[]> {
+    try {
+      // Primero verificamos si hay productos en la base de datos
+      const allProducts = await db.select().from(products).limit(limit);
+      
+      // Si no hay productos, devolvemos un array vacío
+      if (!allProducts || allProducts.length === 0) {
+        console.log("No products found in database, returning empty array");
+        return [];
+      }
+      
+      // Intentamos obtener los productos más vendidos
+      try {
+        const result = await db.execute(sql`
+          SELECT 
+            p.id,
+            p.name,
+            p.image_url as image,
+            COALESCE(SUM(si.quantity), 0) as total_quantity,
+            COALESCE(COUNT(DISTINCT s.id), 0) as total_sales,
+            COALESCE(ROUND((COUNT(DISTINCT s.id) * 100.0 / NULLIF(
+              (SELECT COUNT(*) FROM ${sales} 
+              WHERE sale_date >= (CURRENT_DATE - INTERVAL '30 days')), 0
+            )), 0), 0) as percentage
+          FROM ${products} p
+          LEFT JOIN ${saleItems} si ON p.id = si.product_id
+          LEFT JOIN ${sales} s ON si.sale_id = s.id AND s.sale_date >= (CURRENT_DATE - INTERVAL '30 days')
+          GROUP BY p.id, p.name
+          ORDER BY total_quantity DESC
+          LIMIT ${limit}
+        `);
+        
+        // Asegurarnos de que tenemos un array para devolver
+        if (Array.isArray(result)) {
+          return result;
+        } else if (result && typeof result === 'object' && 'rows' in result) {
+          return result.rows;
+        } else {
+          return [];
+        }
+      } catch (error) {
+        console.error("Error getting top products:", error);
+        // Si hay un error con la consulta compleja, devolvemos productos básicos
+        return allProducts.map(product => ({
+          id: product.id,
+          name: product.name,
+          image: product.imageUrl || '',
+          total_quantity: 0,
+          total_sales: 0,
+          percentage: 0
+        }));
+      }
+    } catch (error) {
+      console.error("Error in getTopProducts:", error);
+      return [];
+    }
+  }
+  // Este método devuelve una lista de productos más vendidos
+  async getNearExpiryProducts(days: number): Promise<any[]> {
+    try {
+      // Primero verificamos si hay productos en inventario
+      const allInventory = await db.select().from(inventory).limit(1);
+      if (!allInventory || allInventory.length === 0) {
+        console.log("No inventory found, returning empty array");
+        return [];
+      }
+      
+      const futureDate = new Date();
+      futureDate.setDate(futureDate.getDate() + days);
+      
+      const result = await db.execute(sql`
+        SELECT p.id, p.name, p.category, i.quantity, p.unit, i.expiry_date,
+              (i.expiry_date - CURRENT_DATE) as days_until_expiry
+        FROM ${products} p
+        JOIN ${inventory} i ON p.id = i.product_id
+        WHERE p.is_perishable = true
+          AND i.expiry_date IS NOT NULL
+          AND i.expiry_date <= ${futureDate.toISOString()}
+          AND i.expiry_date >= CURRENT_DATE
+          AND i.quantity > 0
+        ORDER BY i.expiry_date ASC
+      `);
+      
+      // Asegurarnos de que tenemos un array para devolver
+      if (Array.isArray(result)) {
+        return result;
+      } else if (result && typeof result === 'object' && 'rows' in result) {
+        return result.rows || [];
+      } else {
+        return [];
+      }
+    } catch (error) {
+      console.error("Error getting near expiry products:", error);
       return [];
     }
   }
