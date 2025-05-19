@@ -19,7 +19,7 @@ async function seedDatabase() {
     console.log("Creando usuarios...");
     // Crear usuarios admin y empleado
     const hashedPassword = await hash("lupis123", 10);
-    await db.insert(users).values([
+    const [adminUser, vendedorUser, almacenUser] = await db.insert(users).values([
       {
         username: "admin",
         password: hashedPassword,
@@ -41,7 +41,7 @@ async function seedDatabase() {
         name: "María Inventario",
         role: "inventory",
       }
-    ]);
+    ]).returning();
 
     console.log("Creando productos...");
     // Crear productos
@@ -446,7 +446,12 @@ async function seedDatabase() {
     
     // Crear ventas y sus items
     for (let i = 0; i < salesData.length; i++) {
-      const [sale] = await db.insert(sales).values(salesData[i]).returning();
+      // Añadir número de factura
+      const invoiceNumber = `INV-${2023000 + i}`;
+      const [sale] = await db.insert(sales).values({
+        ...salesData[i], 
+        invoiceNumber
+      }).returning();
       
       // Agregar items a la venta basado en los productos
       const numItems = Math.floor(Math.random() * 4) + 1; // 1 a 4 items por venta
