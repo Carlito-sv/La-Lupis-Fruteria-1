@@ -59,10 +59,7 @@ const StatCard = ({
 
 export default function QuickStatsCards() {
   const { data: stats, isLoading } = useQuery({
-    queryKey: ['/api/statistics/dashboard'],
-    queryFunction: ({ queryKey }) => 
-      fetch(queryKey[0])
-        .then(res => res.json()),
+    queryKey: ['/api/statistics/dashboard']
   });
 
   if (isLoading) {
@@ -109,7 +106,45 @@ export default function QuickStatsCards() {
     }
   };
 
-  const currentStats = stats || defaultStats;
+  // Asegurarnos de tener datos formateados correctamente
+  const formatDashboardData = (data: any) => {
+    if (!data) return defaultStats;
+    
+    try {
+      // Convertir datos de ventas
+      const sales = data.sales || {};
+      const customers = data.customers || {};
+      const alerts = data.alerts || {};
+      
+      return {
+        dailySales: {
+          value: `$${parseFloat(sales.current || 0).toFixed(2)}`,
+          change: `${sales.percentage || "0"}%`,
+          direction: (sales.trend || "neutral") as "up" | "down" | "neutral",
+        },
+        dailyCustomers: {
+          value: `${customers.current || 0}`,
+          change: `${customers.percentage || "0"}%`,
+          direction: (customers.trend || "neutral") as "up" | "down" | "neutral",
+        },
+        inventoryAlerts: {
+          value: `${alerts.count || 0}`,
+          change: "0 nuevas",
+          direction: "neutral" as const,
+        },
+        netProfit: {
+          value: `$${(parseFloat(sales.current || 0) * 0.25).toFixed(2)}`,
+          change: `${sales.percentage || "0"}%`,
+          direction: (sales.trend || "neutral") as "up" | "down" | "neutral",
+        }
+      };
+    } catch (error) {
+      console.error("Error formatting dashboard data:", error);
+      return defaultStats;
+    }
+  };
+
+  const currentStats = formatDashboardData(stats);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">

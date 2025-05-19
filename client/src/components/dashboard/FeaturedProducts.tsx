@@ -16,10 +16,7 @@ interface FeaturedProduct {
 
 export default function FeaturedProducts() {
   const { data: products, isLoading } = useQuery({
-    queryKey: ['/api/products/featured'],
-    queryFunction: ({ queryKey }) => 
-      fetch(queryKey[0])
-        .then(res => res.json()),
+    queryKey: ['/api/products/featured']
   });
 
   return (
@@ -88,8 +85,7 @@ export default function FeaturedProducts() {
             }
           ]).map((product: FeaturedProduct) => (
             <Link key={product.id} href={`/inventory/category/${product.category}`}>
-              <a className="group block">
-                <Card className="bg-white overflow-hidden border border-gray-100">
+                <Card className="bg-white overflow-hidden border border-gray-100 cursor-pointer group">
                   <ProductImage
                     src={product.image}
                     alt={product.name}
@@ -108,7 +104,6 @@ export default function FeaturedProducts() {
                     </div>
                   </div>
                 </Card>
-              </a>
             </Link>
           ))
         )}
